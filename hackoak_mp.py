@@ -15,8 +15,8 @@ def parse(sheetname):
     d = {}
     for sheet in sheets:
         sh = wb[sheet]
+        good = 0; failed = 0
         for row in sh.rows:
-
             # first define class/state for following rows
             fil = filter(lambda cell: cell.value and type(cell.value) is unicode, row)   # remove Nones and non-unicode
             clfil = filter(lambda cell: cell.value.encode('ascii', 'ignore').lower().strip() in classlist, fil)  # need to convert unicode to string correctly. lowercase and remove trailing empty spaces to match to template
@@ -46,18 +46,54 @@ def parse(sheetname):
                 continue      # some early rows don't have complete key
 
             if type(row[0].value) == int:   # this gives us a data row, which is indexed with an int cell
-                res = row[5].value.encode('ascii', 'ignore').lower()   # cast description field to string
+                try:
+                    units = getunits(row[5])
+                except:
+                    units = 0
+                    print
+                    print '***Could not parse this one:***'
+                    print row[5].value
+                    failed += 1
+                try:
+                    dist = getdist(row[4])
+                except:
+                    dist = 0
+                    print
+                    print '***Could not parse this one:***'
+                    print row[4].value
+                    failed += 1
 
-                # get residential unit count. known to skip lots of cases
-                if 'residential' in res:   
-                    for bullet in res.split('/n'):   # bullet cast as carriage return
-                        units = bullet.split('residential')[0].lstrip('n').rstrip()  # remove a few things from ends
-                        try:
-                            d[key]['total'] += int(units)   # try to cast into int. if it fails, ignore it.
-                            dist = row[4].value
-                            if type(dist) == int:
-                                d[key]['dist'+str(dist)] += int(units)
-                        except:
-                            pass
-
+                if dist and units:
+                    good += 1
+                    d[key]['total'] += units
+                    d[key]['dist'+str(dist)] += units
+        print 'Found %d good rows and %d failed to parse.' % (good, failed)
     return d
+
+def getunits(cell):
+    """ Takes description cell value
+    Tries to parse it to get residential unit count.
+    """
+
+    res = cell.value.encode('ascii', 'ignore').lower()   # cast description field to string
+
+    # get residential unit count. known to skip lots of cases
+    try:
+        if 'residential' in res:   
+            for bullet in res.split('/n'):   # bullet cast as carriage return
+                units = int(bullet.split('residential')[0].lstrip('n').rstrip())  # remove a few things from ends
+    except:
+        try:
+            if 'units' in res:   
+                for bullet in res.split('/n'):   # bullet cast as carriage return
+                    print 'bullet:'
+                    print bullet
+                    units = int(bullet.split('units')[0].lstrip('n').rstrip())  # remove a few things from ends
+        except:
+            print res
+
+
+    return int(units)
+
+def getdist(cell):
+    return int(cell.value)
